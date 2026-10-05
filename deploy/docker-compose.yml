@@ -1,0 +1,46 @@
+services:
+  backend:
+    build: ../backend
+    env_file: ../.env.example
+    ports: ["8000:8000"]
+    depends_on: [postgres, redis, mosquitto, minio]
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes: ["../frontend:/app"]
+    command: sh -c "npm install && npm run dev -- --host"
+    ports: ["5173:5173"]
+
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_USER: iyr, POSTGRES_PASSWORD: iyr, POSTGRES_DB: iyr }
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    volumes: ["./mosquitto.conf:/mosquitto/config/mosquitto.conf"]
+    ports: ["1883:1883"]
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment: { MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin }
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  prometheus:
+    image: prom/prometheus
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml"]
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
+  miniodata:

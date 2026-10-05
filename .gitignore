@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+node_modules/
+dist/
+*.db
+synthetic_rubber_dataset/
+runs/
+*.onnx
+*.pt
+.pytest_cache/

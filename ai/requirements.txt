@@ -1,0 +1,11 @@
+numpy
+opencv-python
+pillow
+tqdm
+scipy
+scikit-image
+matplotlib
+# training / inference (install as needed)
+# torch
+# ultralytics
+# onnxruntime-gpu
