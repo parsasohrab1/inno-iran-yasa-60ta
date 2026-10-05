@@ -166,7 +166,7 @@ def inject_crack(img, mask, depth, meta):
         for (x, y) in pts:
             dx, dy = int(x * scale), int(y * scale)
             if 0 <= dx < DEPTH_SIZE and 0 <= dy < DEPTH_SIZE:
-                depth[dx, dy] -= 0.15
+                depth[dy, dx] -= 0.15
         xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
         bbox_list.append([min(xs), min(ys), max(xs), max(ys)])
 
@@ -188,7 +188,6 @@ def inject_bubble(img, mask, depth, meta):
         radius = np.random.randint(3, 12)
         color_val = np.random.choice([200, 220, 10, 30])
         cv2.circle(img, (x, y), radius, (int(color_val),) * 3, -1)
-        cv2.circle(img, (x, y), radius, (255,), -1)  # placeholder
         cv2.circle(mask_defect, (x, y), radius, 255, -1)
         # Depth: bubble raises or lowers
         scale = DEPTH_SIZE / IMG_SIZE
@@ -212,8 +211,13 @@ def inject_deformation(img, mask, depth, meta):
     outer_r, inner_r = meta["outer_r"], meta["inner_r"]
     # Elastic-like deformation on the whole image
     h, w = img.shape[:2]
-    dx = gaussian_filter(np.random.normal(0, 6, (h, w)), sigma=25)
-    dy = gaussian_filter(np.random.normal(0, 6, (h, w)), sigma=25)
+    amp = np.random.uniform(6, 15)  # peak displacement in px (smoothed noise alone is ~0.1 px)
+
+    def _field():
+        f = gaussian_filter(np.random.normal(0, 1, (h, w)), sigma=25)
+        return f / (np.abs(f).max() + 1e-8) * amp
+
+    dx, dy = _field(), _field()
     xx, yy = np.meshgrid(np.arange(w), np.arange(h))
     coords = np.array([yy + dy, xx + dx])
     img = cv2.remap(img, (xx + dx).astype(np.float32),
@@ -274,7 +278,7 @@ def inject_foreign_particle(img, mask, depth, meta):
         for (px, py) in pts:
             dx, dy = int(px * scale), int(py * scale)
             if 0 <= dx < DEPTH_SIZE and 0 <= dy < DEPTH_SIZE:
-                depth[dx, dy] += 0.2
+                depth[dy, dx] += 0.2
         xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
         bbox_list.append([min(xs), min(ys), max(xs), max(ys)])
 
@@ -407,7 +411,8 @@ def generate_sample(class_id):
     label = {
         "class_id": class_id,
         "class_name": CLASS_MAP[class_id],
-        "bboxes": bbox_list,
+        # NOTE: boxes describe the un-augmented sample only; derive boxes from *_def.png masks for training
+        "bboxes": [[int(v) for v in b] for b in bbox_list],
         "image_size": [IMG_SIZE, IMG_SIZE],
     }
     return img, depth, mask, mask_defect, label
@@ -444,11 +449,19 @@ def augment(img, depth, mask, mask_defect):
 
 # ================== MAIN ==================
 def main():
+    global SAMPLES_PER_CLASS, OUTPUT_DIR, AUGMENT_FACTOR
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--samples', type=int, default=SAMPLES_PER_CLASS, help='base samples per class')
+    ap.add_argument('--out', default=OUTPUT_DIR)
+    ap.add_argument('--augment', type=int, default=AUGMENT_FACTOR, help='variants per base sample')
+    a = ap.parse_args()
+    SAMPLES_PER_CLASS, OUTPUT_DIR, AUGMENT_FACTOR = a.samples, a.out, a.augment
     ensure_dirs()
     total = SAMPLES_PER_CLASS * NUM_CLASSES
     print(f"[INFO] Generating {total} base samples "
-          f"({SAMPLES_PER_CLASS} per class × {NUM_CLASSES} classes)")
-    print(f"[INFO] With augmentation ×{AUGMENT_FACTOR} → "
+          f"({SAMPLES_PER_CLASS} per class x {NUM_CLASSES} classes)")
+    print(f"[INFO] With augmentation x{AUGMENT_FACTOR} -> "
           f"~{total * AUGMENT_FACTOR} effective samples")
 
     idx_global = 0
@@ -465,16 +478,11 @@ def main():
                                           mask.copy(), mask_defect.copy())
                 variants.append((ai, ad, am, amd, label))
 
-            for (vi, vd, vm, vmd, vlbl) in variants:
-                # Split assignment
-                r = np.random.rand()
-                if r < 0.70:
-                    split = "train"
-                elif r < 0.85:
-                    split = "val"
-                else:
-                    split = "test"
+            # One split per base sample, so augmented copies never leak across splits
+            r = np.random.rand()
+            split = "train" if r < 0.70 else "val" if r < 0.85 else "test"
 
+            for (vi, vd, vm, vmd, vlbl) in variants:
                 fname = f"{cname}_{idx_global:07d}"
                 # Save RGB
                 cv2.imwrite(os.path.join(OUTPUT_DIR, split, "images", fname + ".png"),

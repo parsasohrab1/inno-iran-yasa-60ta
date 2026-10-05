@@ -1,11 +1,14 @@
 numpy
-opencv-python
+opencv-python-headless
 pillow
 tqdm
 scipy
 scikit-image
 matplotlib
-# training / inference (install as needed)
+pyyaml
+pytest
+# training (large; install when training)
 # torch
 # ultralytics
-# onnxruntime-gpu
+# inference
+# onnxruntime        (or onnxruntime-gpu)

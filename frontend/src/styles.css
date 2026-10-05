@@ -7,3 +7,10 @@ header { display: flex; justify-content: space-between; align-items: center; }
 table { width: 100%; background: #fff; border-collapse: collapse; }
 th, td { padding: 8px; text-align: start; border-bottom: 1px solid #eee; }
 .s-OK { color: #1a7f37; } .s-NG { color: #cf222e; } .s-Review { color: #9a6700; }
+.login { display: flex; flex-direction: column; gap: 8px; max-width: 280px; margin: 48px auto; }
+.login input, button { padding: 8px; }
+.err { color: #cf222e; margin: 0; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.charts > div { background: #fff; border-radius: 8px; padding: 8px 12px; }
+.chart { width: 100%; height: auto; }
+.small { font-size: .8rem; font-weight: normal; }

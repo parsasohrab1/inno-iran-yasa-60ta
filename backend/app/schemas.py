@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import Severity, Status
+from .models import Role, Severity, Status
 
 
 class DefectIn(BaseModel):
@@ -26,6 +26,7 @@ class DefectOut(DefectIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
     severity: Severity
+    confirmed: bool | None = None
 
 
 class InspectionOut(BaseModel):
@@ -38,7 +39,15 @@ class InspectionOut(BaseModel):
     status: Status
     latency_ms: float | None
     image_key: str | None
+    reviewed_by: str | None = None
+    review_note: str | None = None
     defects: list[DefectOut]
+
+
+class ReviewIn(BaseModel):
+    status: Status  # QC's final verdict
+    note: str | None = Field(default=None, max_length=512)
+    confirmed_defect_ids: list[int] | None = None  # defects the reviewer agrees are real; others become false positives
 
 
 class KPIOut(BaseModel):
@@ -49,3 +58,27 @@ class KPIOut(BaseModel):
     defect_rate: float
     fpy: float  # first pass yield
     top_defects: list[dict]
+
+
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    role: Role
+
+
+class UserIn(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=8)
+    role: Role
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    role: Role
+    active: bool

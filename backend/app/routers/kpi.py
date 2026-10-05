@@ -2,15 +2,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..auth import current_user
 from ..db import get_db
-from ..models import Defect, Inspection, Status
+from ..models import Defect, Inspection, Status, User
 from ..schemas import KPIOut
 
 router = APIRouter(prefix="/api/kpi", tags=["kpi"])
 
 
 @router.get("", response_model=KPIOut)  # FR-3-6
-def kpi(line_id: int | None = None, db: Session = Depends(get_db)):
+def kpi(line_id: int | None = None, _: User = Depends(current_user), db: Session = Depends(get_db)):
     q = select(Inspection.status, func.count()).group_by(Inspection.status)
     if line_id:
         q = q.where(Inspection.line_id == line_id)
