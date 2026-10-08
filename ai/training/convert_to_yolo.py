@@ -3,7 +3,7 @@
 Boxes come from the *defect mask* (not label JSON): the mask is transformed together with the
 image during augmentation, whereas JSON boxes are only valid for un-augmented samples.
 
-Usage: python -m ai.training.convert_to_yolo --src synthetic_rubber_dataset --dst yolo_dataset
+Usage: python -m ai.training.convert_to_yolo --src data/synthetic --dst data/yolo
 """
 import argparse
 import os
@@ -17,7 +17,10 @@ from ai.inference.detector import CLASS_MAP
 MIN_AREA = 20  # px; ignore specks
 
 
-def boxes_from_mask(mask_path: str):
+DEFORMATION_ID = 3  # global warp: its mask is a thin ring-edge diff, so one union box, not dozens of fragments
+
+
+def boxes_from_mask(mask_path: str, merge: bool = False):
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
     if mask is None:
         return [], (0, 0)
@@ -28,8 +31,10 @@ def boxes_from_mask(mask_path: str):
     for c in cnts:
         x, y, bw, bh = cv2.boundingRect(c)
         if bw * bh >= MIN_AREA:
-            out.append(((x + bw / 2) / w, (y + bh / 2) / h, bw / w, bh / h))
-    return out, (w, h)
+            out.append((x, y, x + bw, y + bh))
+    if merge and out:
+        out = [(min(b[0] for b in out), min(b[1] for b in out), max(b[2] for b in out), max(b[3] for b in out))]
+    return [((x1 + x2) / 2 / w, (y1 + y2) / 2 / h, (x2 - x1) / w, (y2 - y1) / h) for x1, y1, x2, y2 in out], (w, h)
 
 
 def convert(src: str, dst: str) -> dict:
@@ -50,7 +55,7 @@ def convert(src: str, dst: str) -> dict:
             shutil.copy(os.path.join(img_dir, f), os.path.join(dst, "images", split, f))
             lines = []
             if class_id != 0:  # healthy -> empty label file (background)
-                boxes, _ = boxes_from_mask(os.path.join(src, split, "masks", base + "_def.png"))
+                boxes, _ = boxes_from_mask(os.path.join(src, split, "masks", base + "_def.png"), merge=class_id == DEFORMATION_ID)
                 lines = [f"{class_id - 1} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}" for cx, cy, w, h in boxes]
             with open(os.path.join(dst, "labels", split, base + ".txt"), "w") as out:
                 out.write("\n".join(lines))
@@ -69,7 +74,7 @@ def convert(src: str, dst: str) -> dict:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default="synthetic_rubber_dataset")
-    ap.add_argument("--dst", default="yolo_dataset")
+    ap.add_argument("--src", default="data/synthetic")
+    ap.add_argument("--dst", default="data/yolo")
     a = ap.parse_args()
     print(convert(a.src, a.dst))

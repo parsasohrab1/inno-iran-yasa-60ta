@@ -29,7 +29,7 @@ np.random.seed(SEED)
 IMG_SIZE = 512
 DEPTH_SIZE = 256
 SAMPLES_PER_CLASS = 2500          # 8 classes -> 20,000 samples
-OUTPUT_DIR = "./synthetic_rubber_dataset"
+OUTPUT_DIR = "./data/synthetic"
 AUGMENT_FACTOR = 4                # offline augmentation multiplier
 
 CLASS_MAP = {

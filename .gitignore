@@ -6,7 +6,12 @@ node_modules/
 dist/
 *.db
 synthetic_rubber_dataset/
-runs/
+runs*/
 *.onnx
 *.pt
 .pytest_cache/
+
+# datasets & weights (see data/README.md)
+data/*/*
+!data/*/.gitkeep
+!data/real/SOURCES.md

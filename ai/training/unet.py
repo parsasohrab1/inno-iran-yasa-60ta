@@ -1,6 +1,6 @@
 """Small U-Net for defect segmentation (FR-2-2) + training loop.
 
-python -m ai.training.unet --root synthetic_rubber_dataset --epochs 20
+python -m ai.training.unet --root data/synthetic --epochs 20
 """
 import argparse
 
@@ -53,7 +53,7 @@ def main():
     from .dataset import RubberDefectDataset
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default="synthetic_rubber_dataset")
+    ap.add_argument("--root", default="data/synthetic")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--out", default="unet.pt")

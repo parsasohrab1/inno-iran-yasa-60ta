@@ -31,12 +31,15 @@ docker compose -f deploy/docker-compose.yml up --build
 ## Model pipeline
 ```bash
 pip install -r ai/requirements.txt torch ultralytics onnxruntime
-python -m ai.datagen.synthetic_data_generator --samples 2500 --augment 4 --out synthetic_rubber_dataset
-python -m ai.training.convert_to_yolo --src synthetic_rubber_dataset --dst yolo_dataset
-python -m ai.training.train_yolo --data yolo_dataset/data.yaml --epochs 50     # exports ONNX
-python -m ai.training.unet --root synthetic_rubber_dataset                     # segmentation
-python -m acquisition.run_line --model runs/detect/train/weights/best.onnx
+python -m ai.datagen.synthetic_data_generator --samples 2500 --augment 4 --out data/synthetic
+python -m ai.training.convert_to_yolo --src data/synthetic --dst data/yolo
+python -m ai.training.train_yolo --data data/yolo/data.yaml --epochs 50     # exports ONNX
+python -m ai.training.unet --root data/synthetic                     # segmentation
+# train_yolo copies the export to data/models/best.onnx; run_line uses it automatically
+python -m acquisition.run_line --source data/yolo/images/test --loop     # replay images through the live pipeline
+python -m ai.validation.hil_replay --images data/yolo/images/test --labels data/yolo/labels/test     --model data/models/best.onnx --report data/models/hil_report.json    # SRS acceptance checks
 ```
+Validation plan toward TRL 5: [docs/VALIDATION_PROTOCOL.md](docs/VALIDATION_PROTOCOL.md).
 
 ## Roles
 `operator` (view, post inspections) · `qc` (review, analytics, reports) · `manager` (analytics, reports) · `maintenance` (analytics) · `admin` (everything, user management).
