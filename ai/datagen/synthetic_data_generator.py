@@ -209,15 +209,28 @@ def inject_deformation(img, mask, depth, meta):
     """Add deformation: local geometric warp of the ring."""
     cx, cy = meta["center"]
     outer_r, inner_r = meta["outer_r"], meta["inner_r"]
-    # Elastic-like deformation on the whole image
+    # Radial displacement of the ring: a local dent, a local bulge, or ovalisation.
+    # Peak displacement is 10-22 % of the outer radius (~20-45 px), clearly visible and
+    # comparable to the ring width, so the class is learnable.
     h, w = img.shape[:2]
-    amp = np.random.uniform(6, 15)  # peak displacement in px (smoothed noise alone is ~0.1 px)
-
-    def _field():
-        f = gaussian_filter(np.random.normal(0, 1, (h, w)), sigma=25)
-        return f / (np.abs(f).max() + 1e-8) * amp
-
-    dx, dy = _field(), _field()
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    rx, ry = xx - cx, yy - cy
+    r = np.hypot(rx, ry) + 1e-6
+    th = np.arctan2(ry, rx)
+    kind = np.random.choice(["dent", "bulge", "oval"], p=[0.4, 0.3, 0.3])
+    if kind == "oval":
+        phi = np.random.uniform(0, np.pi)
+        delta = np.random.uniform(0.10, 0.16) * outer_r * np.cos(2 * (th - phi))
+    else:
+        th0 = np.random.uniform(-np.pi, np.pi)
+        width = np.random.uniform(0.35, 0.8)  # angular sigma, rad
+        dth = np.angle(np.exp(1j * (th - th0)))
+        sign = -1.0 if kind == "dent" else 1.0
+        delta = sign * np.random.uniform(0.12, 0.22) * outer_r * np.exp(-dth ** 2 / (2 * width ** 2))
+    rm, band = (outer_r + inner_r) / 2, (outer_r - inner_r) / 2
+    win = np.exp(-0.5 * ((r - rm) / (band * 1.4)) ** 2)  # displace the ring, leave the far background
+    dx = -delta * win * rx / r
+    dy = -delta * win * ry / r
     xx, yy = np.meshgrid(np.arange(w), np.arange(h))
     coords = np.array([yy + dy, xx + dx])
     img = cv2.remap(img, (xx + dx).astype(np.float32),
@@ -239,16 +252,17 @@ def inject_deformation(img, mask, depth, meta):
                       interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     depth = np.clip(depth, 0, 1)
 
-    # Mask defect = difference between original and deformed
+    # Defect mask = where the ring moved (kept for segmentation); the box covers the whole deformed part,
+    # a consistent label for a shape defect. The warped ring replaces the product mask.
     mask_defect = cv2.absdiff(mask, mask_new)
     _, mask_defect = cv2.threshold(mask_defect, 30, 255, cv2.THRESH_BINARY)
     bbox_list = []
-    cnts, _ = cv2.findContours(mask_defect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts, _ = cv2.findContours(mask_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for c in cnts:
         if cv2.contourArea(c) > 50:
             x, y, ww, hh = cv2.boundingRect(c)
             bbox_list.append([x, y, x + ww, y + hh])
-    return img, depth, mask_defect, bbox_list
+    return img, depth, mask_defect, bbox_list, mask_new
 
 def inject_foreign_particle(img, mask, depth, meta):
     """Add foreign particles (metal/plastic bits) on the product."""
@@ -387,7 +401,7 @@ def generate_sample(class_id):
     elif class_id == 2:
         img, depth, mask_defect, bbox_list = inject_bubble(img, mask, depth, meta)
     elif class_id == 3:
-        img, depth, mask_defect, bbox_list = inject_deformation(img, mask, depth, meta)
+        img, depth, mask_defect, bbox_list, mask = inject_deformation(img, mask, depth, meta)
     elif class_id == 4:
         img, depth, mask_defect, bbox_list = inject_foreign_particle(img, mask, depth, meta)
     elif class_id == 5:

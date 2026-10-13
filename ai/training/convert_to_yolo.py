@@ -17,7 +17,7 @@ from ai.inference.detector import CLASS_MAP
 MIN_AREA = 20  # px; ignore specks
 
 
-DEFORMATION_ID = 3  # global warp: its mask is a thin ring-edge diff, so one union box, not dozens of fragments
+DEFORMATION_ID = 3  # shape defect: boxed as the whole deformed part (from the warped product mask)
 
 
 def boxes_from_mask(mask_path: str, merge: bool = False):
@@ -55,7 +55,8 @@ def convert(src: str, dst: str) -> dict:
             shutil.copy(os.path.join(img_dir, f), os.path.join(dst, "images", split, f))
             lines = []
             if class_id != 0:  # healthy -> empty label file (background)
-                boxes, _ = boxes_from_mask(os.path.join(src, split, "masks", base + "_def.png"), merge=class_id == DEFORMATION_ID)
+                suffix = "_prod.png" if class_id == DEFORMATION_ID else "_def.png"
+                boxes, _ = boxes_from_mask(os.path.join(src, split, "masks", base + suffix), merge=class_id == DEFORMATION_ID)
                 lines = [f"{class_id - 1} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}" for cx, cy, w, h in boxes]
             with open(os.path.join(dst, "labels", split, base + ".txt"), "w") as out:
                 out.write("\n".join(lines))
