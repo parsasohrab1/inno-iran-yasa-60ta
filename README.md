@@ -39,6 +39,14 @@ python -m ai.training.unet --root data/synthetic                     # segmentat
 python -m acquisition.run_line --source data/yolo/images/test --loop     # replay images through the live pipeline
 python -m ai.validation.hil_replay --images data/yolo/images/test --labels data/yolo/labels/test     --model data/models/best.onnx --report data/models/hil_report.json    # SRS acceptance checks
 ```
+Shape check against a reference template (catches deformation, which box detectors miss):
+```bash
+python -m ai.inference.shape_check fit --images data/yolo_v2/images/train --labels data/yolo_v2/labels/train     --out data/models/ring_template.json            # learn the nominal silhouette from healthy parts (FR-1-5)
+python -m ai.validation.hil_replay ... --template data/models/ring_template.json
+python -m acquisition.run_line --template data/models/ring_template.json
+```
+Assumes a controlled station with a part that contrasts with a uniform background; unsegmentable frames are counted, not passed silently.
+
 Validation plan toward TRL 5: [docs/VALIDATION_PROTOCOL.md](docs/VALIDATION_PROTOCOL.md).
 
 ## Roles

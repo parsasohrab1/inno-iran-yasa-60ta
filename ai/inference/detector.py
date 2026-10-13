@@ -84,3 +84,35 @@ class OnnxDetector:
         x = np.ascontiguousarray(x.transpose(2, 0, 1)[None])
         out = self.session.run(None, {self.input_name: x})[0]
         return postprocess(out, (h, w), self.conf_threshold)
+
+
+class ShapeAwareDetector:
+    """CNN detector + reference-template shape check.
+
+    The shape check only adds a *deformation* detection when the base detector found nothing at or above
+    `conf_threshold`: local defects stay with the CNN (which localises them), and a part the CNN passes but
+    whose silhouette leaves the template tolerance still gets stopped. A part that cannot be segmented is counted
+    in `stats["unsegmentable"]` rather than silently treated as verified.
+    """
+
+    DEFORMATION_ID = 3
+
+    def __init__(self, base: Detector, template, conf_threshold: float = 0.7):
+        from collections import Counter
+
+        self.base, self.template, self.conf_threshold = base, template, conf_threshold
+        self.stats = Counter()
+
+    def predict(self, image: np.ndarray, depth: np.ndarray | None = None) -> list[Detection]:
+        dets = self.base.predict(image, depth)
+        if any(d.confidence >= self.conf_threshold for d in dets):
+            self.stats["cnn_flagged"] += 1
+            return dets
+        res = self.template.check(image)
+        self.stats[res.status] += 1
+        if res.status != "anomaly":
+            return dets
+        # score 1.0 -> Review band (0.70); score >= 2.0 -> confident NG (0.95)
+        conf = float(min(0.95, 0.70 + 0.25 * min(1.0, res.score - 1.0)))
+        sev = float(min(1.0, CRITICALITY[self.DEFORMATION_ID] * (0.5 + 0.5 * min(1.0, res.score / 4.0))))
+        return dets + [Detection(self.DEFORMATION_ID, CLASS_MAP[self.DEFORMATION_ID], conf, sev, res.bbox)]

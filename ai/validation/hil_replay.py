@@ -169,6 +169,7 @@ def main():
     ap.add_argument("--labels", required=True)
     ap.add_argument("--model", help="ONNX model; omit to run the stub (will fail recall criteria)")
     ap.add_argument("--rate", type=float, default=0, help="parts/min pacing; 0 = max speed")
+    ap.add_argument("--template", help="shape template JSON; adds the reference-template shape check")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--report", default="hil_report.json")
     a = ap.parse_args()
@@ -180,7 +181,13 @@ def main():
         from ai.inference.detector import StubDetector
         det = StubDetector()
 
+    if a.template:
+        from ai.inference.detector import ShapeAwareDetector
+        from ai.inference.shape_check import ShapeTemplate
+        det = ShapeAwareDetector(det, ShapeTemplate.load(a.template))
     m = run(a.images, a.labels, det, a.rate, a.limit)
+    if a.template:
+        m["shape_check"] = dict(det.stats)
     with open(a.report, "w") as f:
         json.dump(m, f, indent=2)
     for k, v in m["checks"].items():

@@ -17,7 +17,7 @@ from ai.inference.detector import StubDetector
 DEFAULT_MODEL = "data/models/best.onnx"
 
 
-def build_detector(model: str | None, conf: float):
+def build_detector(model: str | None, conf: float, template: str | None = None):
     path = model or (DEFAULT_MODEL if os.path.exists(DEFAULT_MODEL) else None)
     if not path:
         print("[run_line] no ONNX model found -> StubDetector (no defects will be reported)")
@@ -25,7 +25,14 @@ def build_detector(model: str | None, conf: float):
     from ai.inference.detector import OnnxDetector
 
     print(f"[run_line] using model {path}")
-    return OnnxDetector(path, conf_threshold=conf)
+    det = OnnxDetector(path, conf_threshold=conf)
+    if template:
+        from ai.inference.detector import ShapeAwareDetector
+        from ai.inference.shape_check import ShapeTemplate
+
+        print(f"[run_line] shape check with template {template}")
+        det = ShapeAwareDetector(det, ShapeTemplate.load(template))
+    return det
 
 
 def main():
@@ -34,6 +41,7 @@ def main():
     ap.add_argument("--rate", type=int, default=30, help="parts per minute (SRS NFR-2: >= 30)")
     ap.add_argument("--model", help=f"ONNX model path (default {DEFAULT_MODEL} if it exists)")
     ap.add_argument("--conf", type=float, default=0.5, help="detector floor; the backend applies the 0.7 decision threshold")
+    ap.add_argument("--template", help="reference shape template JSON (see ai.inference.shape_check fit)")
     ap.add_argument("--source", help="folder of images to replay instead of the simulated camera")
     ap.add_argument("--loop", action="store_true", help="loop the replay source forever")
     ap.add_argument("--shift", default="A")
@@ -47,7 +55,7 @@ def main():
     client.headers["Authorization"] = f"Bearer {tok}"
 
     cam = ReplayCamera(a.source, loop=a.loop) if a.source else SimulatedCamera()
-    det = build_detector(a.model, a.conf)
+    det = build_detector(a.model, a.conf, a.template)
 
     n = 0
     while True:
