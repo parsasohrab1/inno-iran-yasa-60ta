@@ -105,3 +105,32 @@ def test_websocket_requires_token(c):
     tok = c.headers["Authorization"].split()[1]
     with TestClient(app).websocket_connect(f"/ws/inspections?token={tok}"):
         pass
+
+
+def test_reviewer_can_add_missed_defect_and_export(c):
+    r = c.post("/api/inspections", json={
+        "part_id": "FN1", "line_id": 1, "shift": "A", "image_key": "fn1.png", "defects": []}).json()
+    assert r["status"] == "OK"
+    out = c.patch(f"/api/inspections/{r['id']}/review", json={
+        "status": "NG", "note": "missed crack",
+        "added_defects": [_defect(1.0, 0.9)]}).json()
+    assert out["status"] == "NG" and len(out["defects"]) == 1
+    assert out["defects"][0]["confirmed"] is True and out["defects"][0]["severity"] == "High"
+
+    # unreviewed or image-less inspections are not exported
+    c.post("/api/inspections", json={"part_id": "U1", "line_id": 1, "shift": "A", "image_key": "u1.png"})
+    r2 = c.post("/api/inspections", json={"part_id": "NI", "line_id": 1, "shift": "A"}).json()
+    c.patch(f"/api/inspections/{r2['id']}/review", json={"status": "OK"})
+
+    rows = c.get("/api/training/reviewed").json()
+    assert [x["part_id"] for x in rows] == ["FN1"]
+    assert rows[0]["status"] == "NG" and rows[0]["defects"][0]["confirmed"] is True
+    assert rows[0]["reviewed_by"] == "admin"
+
+
+def test_training_export_requires_qc(c):
+    c.post("/api/users", json={"username": "mgr1", "password": "password1", "role": "manager"})
+    tok = TestClient(app).post("/api/auth/login", json={"username": "mgr1", "password": "password1"}).json()
+    m = TestClient(app)
+    m.headers["Authorization"] = f"Bearer {tok['access_token']}"
+    assert m.get("/api/training/reviewed").status_code == 403

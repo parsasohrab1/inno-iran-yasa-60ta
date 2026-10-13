@@ -6,6 +6,7 @@ Env: API_URL, API_USER, API_PASSWORD
 """
 import argparse
 import os
+import random
 import time
 
 import cv2
@@ -44,6 +45,9 @@ def main():
     ap.add_argument("--template", help="reference shape template JSON (see ai.inference.shape_check fit)")
     ap.add_argument("--source", help="folder of images to replay instead of the simulated camera")
     ap.add_argument("--loop", action="store_true", help="loop the replay source forever")
+    ap.add_argument("--keep-ok-rate", type=float, default=0.02,
+                    help="fraction of parts the model passed whose image is also stored, so QC can audit "
+                         "misses (false negatives) and feed them to retraining")
     ap.add_argument("--shift", default="A")
     a = ap.parse_args()
 
@@ -69,7 +73,7 @@ def main():
         n += 1
 
         image_key = None
-        if dets:  # keep evidence only for flagged parts
+        if dets or random.random() < a.keep_ok_rate:  # evidence for flagged parts + an audit sample of passes
             ok, buf = cv2.imencode(".png", cv2.cvtColor(frame.rgb, cv2.COLOR_RGB2BGR))
             r = client.post("/api/images", files={"file": ("f.png", buf.tobytes(), "image/png")})
             image_key = r.json()["image_key"] if r.is_success else None

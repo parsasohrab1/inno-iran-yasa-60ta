@@ -47,6 +47,21 @@ python -m acquisition.run_line --template data/models/ring_template.json
 ```
 Assumes a controlled station with a part that contrasts with a uniform background; unsegmentable frames are counted, not passed silently.
 
+## Continuous learning from QC reviews
+QC reviewers confirm/reject detections and can add defects the model missed (`PATCH /api/inspections/{id}/review`
+with `added_defects`). `acquisition.run_line` stores images for flagged parts plus a 2 % audit sample of passed parts
+(`--keep-ok-rate`) so misses can be found. The retraining job turns those reviews into a fine-tuning set:
+```bash
+python -m ai.training.retrain --dry-run                       # fetch + build dataset, report only
+python -m ai.training.retrain --min-new 50 --exclude-manifest data/blind_parts.txt   # train a candidate
+python -m ai.training.retrain --min-new 50 --promote          # swap best.onnx only if the gate passes
+```
+Safeguards: part-level train/val split (no leakage), blind-set exclusion list, ambiguous verdicts skipped, replay of the
+base dataset against forgetting, a fixed gate set (candidate must not regress on critical recall, false negatives,
+precision) plus reviewed-validation parts, a registry with hashes/metrics/dataset manifest (`data/models/registry.json`),
+the previous model archived on promotion. Promotion is never automatic and does **not** replace the protocol's
+re-validation on the blind set (T6) before a deployment.
+
 Validation plan toward TRL 5: [docs/VALIDATION_PROTOCOL.md](docs/VALIDATION_PROTOCOL.md).
 
 ## Roles
@@ -55,5 +70,5 @@ Validation plan toward TRL 5: [docs/VALIDATION_PROTOCOL.md](docs/VALIDATION_PROT
 ## Not done yet (honest status)
 - **No trained model exists.** The pipeline is written and unit-tested on tiny data, but no training run has happened, so mAP/recall targets (SRS §8) are unverified. Synthetic data must be followed by real-data fine-tuning.
 - Real GigE/GenICam drivers, 3D sensor, PLC/OPC-UA/Modbus/MQTT triggers (FR-1-x, FR-4-1), time sync and calibration: only interfaces/simulation.
-- Few-shot learning, Grad-CAM, continuous-learning retrain job (confirmed labels are stored, not yet consumed), Digital Twin, LDAP/AD, PDF reports, Alembic migrations, TLS.
+- Few-shot learning, Grad-CAM, a reviewer UI for drawing boxes (the API supports `added_defects`), a scheduler for the retraining job, Digital Twin, LDAP/AD, PDF reports, Alembic migrations, TLS.
 - Latency/throughput/uptime NFRs have not been measured.

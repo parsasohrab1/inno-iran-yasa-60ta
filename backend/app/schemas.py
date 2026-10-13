@@ -48,6 +48,7 @@ class ReviewIn(BaseModel):
     status: Status  # QC's final verdict
     note: str | None = Field(default=None, max_length=512)
     confirmed_defect_ids: list[int] | None = None  # defects the reviewer agrees are real; others become false positives
+    added_defects: list[DefectIn] = []  # defects the model missed (false negatives), drawn by the reviewer
 
 
 class KPIOut(BaseModel):
@@ -82,3 +83,23 @@ class UserOut(BaseModel):
     username: str
     role: Role
     active: bool
+
+
+class ReviewedDefect(BaseModel):
+    class_id: int
+    class_name: str
+    bbox: list[float]
+    confidence: float
+    confirmed: bool | None  # True real, False false positive, None not individually reviewed
+
+
+class ReviewedSample(BaseModel):
+    """One QC-reviewed inspection with its stored image, as consumed by the retraining job."""
+    inspection_id: int
+    part_id: str
+    line_id: int
+    image_key: str
+    status: Status  # reviewer's final verdict (OK / NG)
+    reviewed_by: str
+    reviewed_at: datetime
+    defects: list[ReviewedDefect]

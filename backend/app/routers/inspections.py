@@ -79,6 +79,8 @@ async def review_inspection(
     if body.confirmed_defect_ids is not None:
         for d in insp.defects:
             d.confirmed = d.id in body.confirmed_defect_ids
+    for d in body.added_defects:  # false negatives: real defects the model never reported
+        insp.defects.append(Defect(**d.model_dump(), severity=severity_level(d.severity_score), confirmed=True))
     db.commit()
     db.refresh(insp)
     out = InspectionOut.model_validate(insp)

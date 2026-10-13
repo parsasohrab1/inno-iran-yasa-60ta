@@ -6,7 +6,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from .auth import decode_token, seed_admin
 from .db import Base, SessionLocal, engine
-from .routers import analytics, auth, images, inspections, kpi, reports
+from .routers import analytics, auth, images, inspections, kpi, reports, training
 from .services.ws import hub
 
 
@@ -22,7 +22,7 @@ app = FastAPI(title="Iran Yasa Rubber Inspection API", version="0.2.0", lifespan
 app.add_middleware(
     CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"]
 )
-for r in (auth, inspections, kpi, analytics, reports, images):
+for r in (auth, inspections, kpi, analytics, reports, images, training):
     app.include_router(r.router)
 Instrumentator().instrument(app).expose(app)  # NFR-7: /metrics
 
