@@ -15,3 +15,5 @@ runs*/
 data/*/*
 !data/*/.gitkeep
 !data/real/SOURCES.md
+
+.env.local

@@ -1,5 +1,6 @@
 """Acquisition abstractions (FR-1). Real drivers: GigE Vision / GenICam (e.g. harvesters, pypylon)."""
 import os
+import random
 from dataclasses import dataclass, field
 from time import time
 from typing import Iterator, Protocol
@@ -37,13 +38,24 @@ class ReplayCamera:
     Used for hardware-in-the-loop replay: the full detect -> decide -> report path runs on stored frames.
     """
 
-    def __init__(self, image_dir: str, loop: bool = False, limit: int | None = None):
+    def __init__(self, image_dir: str, loop: bool = False, limit: int | None = None, shuffle: bool = False,
+                 healthy_share: float | None = None, seed: int = 0):
+        """shuffle: random order instead of alphabetical (alphabetical = one defect class at a time).
+        healthy_share: demo aid for synthetic sets named `healthy_*`; repeat healthy images so they make up this
+        fraction of the stream (a real line is mostly good parts, while test sets are defect-heavy)."""
         self.files = sorted(f for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg")))
         if limit:
             self.files = self.files[:limit]
         if not self.files:
             raise FileNotFoundError(f"no images in {image_dir}")
-        self.dir, self.loop = image_dir, loop
+        if healthy_share is not None:
+            good = [f for f in self.files if f.startswith("healthy")]
+            bad = [f for f in self.files if not f.startswith("healthy")]
+            if good and bad and 0 < healthy_share < 1:
+                n_good = round(len(bad) * healthy_share / (1 - healthy_share))
+                self.files = bad + [good[i % len(good)] for i in range(n_good)]
+        self._rng = random.Random(seed)
+        self.dir, self.loop, self.shuffle = image_dir, loop, shuffle
         self._it = self._iterate()
 
     def __len__(self) -> int:
@@ -51,7 +63,10 @@ class ReplayCamera:
 
     def _iterate(self) -> Iterator[str]:
         while True:
-            yield from self.files
+            order = list(self.files)
+            if self.shuffle:
+                self._rng.shuffle(order)
+            yield from order
             if not self.loop:
                 return
 

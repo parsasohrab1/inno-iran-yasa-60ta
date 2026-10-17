@@ -45,9 +45,12 @@ def main():
     ap.add_argument("--template", help="reference shape template JSON (see ai.inference.shape_check fit)")
     ap.add_argument("--source", help="folder of images to replay instead of the simulated camera")
     ap.add_argument("--loop", action="store_true", help="loop the replay source forever")
+    ap.add_argument("--shuffle", action="store_true", help="replay in random order")
+    ap.add_argument("--healthy-share", type=float, help="demo: make `healthy_*` images this fraction of the stream")
     ap.add_argument("--keep-ok-rate", type=float, default=0.02,
                     help="fraction of parts the model passed whose image is also stored, so QC can audit "
                          "misses (false negatives) and feed them to retraining")
+    ap.add_argument("--no-images", action="store_true", help="do not upload images (e.g. when no object storage is running)")
     ap.add_argument("--shift", default="A")
     a = ap.parse_args()
 
@@ -58,7 +61,7 @@ def main():
     }).raise_for_status().json()["access_token"]
     client.headers["Authorization"] = f"Bearer {tok}"
 
-    cam = ReplayCamera(a.source, loop=a.loop) if a.source else SimulatedCamera()
+    cam = ReplayCamera(a.source, loop=a.loop, shuffle=a.shuffle, healthy_share=a.healthy_share) if a.source else SimulatedCamera()
     det = build_detector(a.model, a.conf, a.template)
 
     n = 0
@@ -73,7 +76,7 @@ def main():
         n += 1
 
         image_key = None
-        if dets or random.random() < a.keep_ok_rate:  # evidence for flagged parts + an audit sample of passes
+        if not a.no_images and (dets or random.random() < a.keep_ok_rate):  # evidence for flagged parts + an audit sample of passes
             ok, buf = cv2.imencode(".png", cv2.cvtColor(frame.rgb, cv2.COLOR_RGB2BGR))
             r = client.post("/api/images", files={"file": ("f.png", buf.tobytes(), "image/png")})
             image_key = r.json()["image_key"] if r.is_success else None
