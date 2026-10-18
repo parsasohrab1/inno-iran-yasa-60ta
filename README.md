@@ -64,11 +64,33 @@ re-validation on the blind set (T6) before a deployment.
 
 Validation plan toward TRL 5: [docs/VALIDATION_PROTOCOL.md](docs/VALIDATION_PROTOCOL.md).
 
+## Smart plant (simulated) — live dashboard, alarms, shifts, autopilot, warehouse
+The backend runs a **simulated** plant (4 lines + shared hall, 34 typical equipment items, 132 sensors) and streams it to the
+dashboard ("Plant (live)" tab). Alarms escalate operator -> production manager -> plant manager; shifts come from
+`data/plant_shifts.json` (default is an *assumed* 3x8 schedule, flagged in the UI); each line has an autopilot
+(off / advisory / autonomous) with hard safety limits; the "Warehouse, procurement & customers" tab holds stock, prices and
+customers (empty until real data is entered; a flagged demo seed exists).
+Nothing here is real plant data and no real PLC is connected. Details: [docs/PLANT_AND_BENCHMARK_FA.md](docs/PLANT_AND_BENCHMARK_FA.md),
+[docs/PLANT_SENSORS_FA.md](docs/PLANT_SENSORS_FA.md), [docs/SITE_VISIT_CHECKLIST_FA.md](docs/SITE_VISIT_CHECKLIST_FA.md).
+```bash
+PLANT_SIM_ENABLED=false uvicorn ...        # turn the simulator off when a real adapter is attached
+python scripts/demo_safe_stop.py           # autopilot takeover + injected fault + latched safe stop
+```
+
+## Market development, OEE, PLC and SMS
+- **Market development tab:** quality-improvement analytics from real inspections, competitor benchmarking (scores need evidence), export-readiness
+  checklist, demand forecast per product and per customer (backtested, with honest intervals) and five production scenarios with material needs.
+  See [docs/MARKET_DEVELOPMENT_FA.md](docs/MARKET_DEVELOPMENT_FA.md). With no real data it stays empty and says so.
+- **Plant tab additions:** anomaly detection learned from normal operation, downtime reason codes + Pareto, corrective actions on alarms, and OEE
+  (availability x performance x quality with a loss tree) computed only over time the monitoring system actually observed.
+- **PLC / SMS:** `PLANT_SOURCE=opcua` uses the OPC-UA adapter (read-only unless `write_enabled`), tested against a real OPC-UA server; SMS goes through
+  an Iranian gateway (tested with a mock; verify with a real test message). See [docs/PLC_AND_SMS_FA.md](docs/PLC_AND_SMS_FA.md).
+
 ## Roles
 `operator` (view, post inspections) · `qc` (review, analytics, reports) · `manager` (analytics, reports) · `maintenance` (analytics) · `admin` (everything, user management).
 
 ## Not done yet (honest status)
 - **No trained model exists.** The pipeline is written and unit-tested on tiny data, but no training run has happened, so mAP/recall targets (SRS §8) are unverified. Synthetic data must be followed by real-data fine-tuning.
-- Real GigE/GenICam drivers, 3D sensor, PLC/OPC-UA/Modbus/MQTT triggers (FR-1-x, FR-4-1), time sync and calibration: only interfaces/simulation.
+- Real GigE/GenICam drivers, 3D sensor, Modbus/MQTT triggers (FR-1-x, FR-4-1), time sync and calibration: only interfaces/simulation. OPC-UA exists but is not connected to a real PLC.
 - Few-shot learning, Grad-CAM, a reviewer UI for drawing boxes (the API supports `added_defects`), a scheduler for the retraining job, Digital Twin, LDAP/AD, PDF reports, Alembic migrations, TLS.
 - Latency/throughput/uptime NFRs have not been measured.

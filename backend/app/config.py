@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"
     s3_bucket: str = "inspections"
+    plant_sim_enabled: bool = True  # SIMULATED plant data; turn off when a real PLC/SCADA adapter is attached
+    plant_sim_tick_s: float = 1.0
+    plant_lines: int = 4
+    plant_contacts_path: str = "data/plant_contacts.json"  # git-ignored: real phone numbers / webhooks
+    plant_source: str = "sim"  # sim | opcua
+    plant_opcua_map_path: str = "data/opcua_map.json"
+    sms_provider: str = ""  # "" (off) | kavenegar | generic; the API key is read from the SMS_API_KEY environment variable
+    sms_sender: str = ""
+    sms_min_severity: str = "critical"
+    sms_generic_url: str = ""
+    plant_shifts_path: str = "data/plant_shifts.json"  # the factory's real shift hours (default = assumed 3x8)
 
 
 settings = Settings()

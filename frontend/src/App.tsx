@@ -2,7 +2,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   api, AuthError, download, getToken, Inspection, KPI, login, ParetoPoint, Role, setToken, SpcPoint, TrendPoint,
 } from "./api";
+import Business from "./Business";
 import { Pareto, Spc, Trend } from "./charts";
+import Market from "./Market";
+import Plant from "./Plant";
 import { Lang, messages } from "./i18n";
 
 const ANALYTICS_ROLES: Role[] = ["qc", "manager", "maintenance", "admin"];
@@ -37,8 +40,30 @@ export default function App() {
           <button onClick={() => setLang(lang === "fa" ? "en" : "fa")}>{lang === "fa" ? "EN" : "فا"}</button>
         </div>
       </header>
-      {role ? <Dashboard role={role} lang={lang} onAuthLost={logout} /> : <Login lang={lang} onLogin={setRole} />}
+      {role ? <Shell role={role} lang={lang} onAuthLost={logout} /> : <Login lang={lang} onLogin={setRole} />}
     </main>
+  );
+}
+
+const TABS = {
+  fa: { plant: "خط تولید (زنده)", inspection: "بازرسی کیفیت", business: "انبار، تأمین و مشتریان", market: "توسعه بازار" },
+  en: { plant: "Plant (live)", inspection: "Quality inspection", business: "Warehouse, procurement & customers", market: "Market development" },
+} as const;
+
+function Shell({ role, lang, onAuthLost }: { role: Role; lang: Lang; onAuthLost: () => void }) {
+  const [tab, setTab] = useState<"plant" | "inspection" | "business" | "market">("plant");
+  const names = TABS[lang];
+  return (
+    <>
+      <nav className="tabs main-tabs">
+        {(["plant", "inspection", "business", "market"] as const).map((k) => (
+          <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{names[k]}</button>))}
+      </nav>
+      {tab === "plant" && <Plant role={role} lang={lang} onAuthLost={onAuthLost} />}
+      {tab === "inspection" && <Dashboard role={role} lang={lang} onAuthLost={onAuthLost} />}
+      {tab === "business" && <Business role={role} lang={lang} onAuthLost={onAuthLost} />}
+      {tab === "market" && <Market role={role} lang={lang} onAuthLost={onAuthLost} />}
+    </>
   );
 }
 
